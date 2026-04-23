@@ -163,6 +163,94 @@
         }
         .btn-main.ready { opacity: 1; box-shadow: 0 4px 15px rgba(36, 129, 204, 0.3); }
         @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Основная плашка */
+.video-banner {
+    background: var(--sec-bg);
+    border-radius: 12px;
+    padding: 14px;
+    margin: 20px 0 10px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+    border: 1px solid rgba(36, 129, 204, 0.2);
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden; /* Обрезает лишние камеры по краям */
+}
+
+/* Слой с "рассыпанными" камерами по всей площади */
+.video-banner::before {
+    /* Добавляем много иконок с разным количеством пробелов между ними */
+    content: "🎥   📹    🎥   📹   🎥\A   📹    🎥   📹    🎥   📹\A 🎥   📹    🎥   📹   🎥";
+    white-space: pre; /* Позволяет работать переносам строк \A */
+    position: absolute;
+    width: 150%; /* Делаем слой шире кнопки */
+    height: 150%; /* И выше кнопки */
+    font-size: 16px;
+    opacity: 0.25; /* Прозрачность */
+    top: -10%; 
+    left: -10%;
+    transform: rotate(-15deg); /* Наклоняем всё "облако" иконок */
+    pointer-events: none;
+    line-height: 1.8; /* Расстояние между рядами камер */
+    text-align: center;
+}
+
+.video-banner:active {
+    transform: scale(0.98);
+}
+
+.video-banner b {
+    font-size: 14px;
+    color: var(--primary);
+    position: relative;
+    z-index: 10; /* Текст ВСЕГДА поверх камер */
+    /* Эффект "островка" для текста, чтобы камеры под ним не мешали */
+    background: var(--sec-bg);
+    padding: 2px 8px;
+    border-radius: 6px;
+    box-shadow: 0 0 15px 10px var(--sec-bg);
+}
+
+/* Модальное окно */
+.video-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    z-index: 9999;
+    justify-content: center;
+    align-items: center;
+    backdrop-filter: blur(8px);
+}
+
+.video-content {
+    position: relative;
+    width: 90%;
+    max-width: 450px;
+}
+
+.video-content video {
+    width: 100%;
+    border-radius: 20px;
+    display: block;
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+}
+
+.close-video {
+    position: absolute;
+    top: -45px;
+    right: 0;
+    color: white;
+    font-size: 35px;
+    padding: 10px;
+    cursor: pointer;
+}
+    
     </style>
 </head>
 <body class="ym-disable-keys" onload="document.body.style.opacity='1'; updateUrgency();">
@@ -220,6 +308,21 @@
     </div>
 </div>
 
+<div class="video-banner" onclick="openVideo('review.mp4')">
+    <span>🎥</span>
+    <b>Посмотреть видео-обзор</b>
+    <span>🎥</span>
+</div>
+
+<div id="videoOverlay" class="video-overlay" onclick="closeVideo()">
+    <div class="video-content" onclick="event.stopPropagation()">
+        <div class="close-video" onclick="closeVideo()">&times;</div>
+        <video id="player" controls playsinline preload="none">
+            <source src="" type="video/mp4">
+        </video>
+    </div>
+</div>
+    
 <div class="info-container">
     <details> <summary>📦 Подробнее</summary>
         <div class="details-content">
@@ -299,7 +402,7 @@
         if (now.getHours() < 17) {
             textElem.innerHTML = `Заказали уже <b>${ordersCount} шт</b>. Если успеешь оформить до <b>17:00</b>, тогда отправлю сегодня!`;
         } else {
-            textElem.innerHTML = `Дневную партию уже отправил. Закажи сейчас, чтобы я отправил <b>уже завтра утром</b>!`;
+            textElem.innerHTML = `Дневную партию уже отправил. Закажешь сейчас, отправлю <b>завтра утром</b>!`;
         }
         banner.style.display = 'flex';
     }
@@ -465,12 +568,7 @@
     document.getElementById('price_recipes').innerText = PRICES.recipes + '₽';
     document.getElementById('price_cards').innerText = PRICES.cards + '₽';
     document.getElementById('price_combo').innerText = PRICES.combo + '₽';
-    
-    updateProgress();
-
-    // Ждем, пока Telegram скажет "я готов"
-tg.ready(); 
-
+     
 // Отправляем ID пользователя в Метрику принудительно
 if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
     const userId = window.Telegram.WebApp.initDataUnsafe.user.id;
@@ -484,6 +582,36 @@ if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData
         tg_id: "not_in_telegram"
     });
 }
+    function openVideo(src) {
+    const overlay = document.getElementById('videoOverlay');
+    const player = document.getElementById('player');
+    const source = player.querySelector('source');
+    
+    // Правильная установка источника для видео
+    source.src = src;
+    player.load(); // Обязательно для смены источника
+    
+    overlay.style.display = 'flex';
+    player.play().catch(e => console.log("Автоплей заблокирован"));
+
+    if (tg.isVersionAtLeast('6.1')) {
+        tg.HapticFeedback.impactOccurred('medium');
+    }
+}
+
+function closeVideo() {
+    const overlay = document.getElementById('videoOverlay');
+    const player = document.getElementById('player');
+    
+    player.pause();
+    overlay.style.display = 'none';
+    player.querySelector('source').src = ""; 
+}
+
+// Финальная инициализация
+tg.ready(); 
+updateProgress();
+    
 </script>
 </body>
 </html>
